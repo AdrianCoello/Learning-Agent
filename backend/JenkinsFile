@@ -6,7 +6,7 @@ pipeline {
         NODE_ENV = 'production'
         DOCKER_IMAGE = "adriancoello/learning-agent-backend"
         DOCKER_TAG = "build-${env.BUILD_NUMBER}"
-        DROPLET_IP = 'tu_ip_del_droplet'  // REEMPLAZA CON TU IP REAL
+        DROPLET_IP = '104.248.216.179' 
     }
 
     stages {
@@ -30,11 +30,8 @@ pipeline {
         stage('Run Tests') {
             steps {
                 script {
-                    dir('backend') {
-                        sh 'echo "Running tests..."'
-                        // Ejecutar tests si existen
-                        sh 'npm test || echo "No tests found"'
-                    }
+                    sh 'echo "Running tests inside Docker..."'
+                    sh "docker run --rm ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} npm test || echo 'No tests found'"
                 }
             }
         }
@@ -49,6 +46,9 @@ pipeline {
                                 docker stop learning-agent-backend || true
                                 docker rm learning-agent-backend || true
                                 
+                                echo "Pulling Docker image..." 
+                                docker pull ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+
                                 echo "Running new container..."
                                 docker run -d \\
                                     --name learning-agent-backend \\
