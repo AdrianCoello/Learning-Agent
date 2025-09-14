@@ -5,6 +5,11 @@ pipeline {
         CI = 'true'
         NODE_ENV = 'production'
         REGISTRY_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
+        DOCKER_IMAGE = "${env.DOCKERHUB_USER}/learning-agent-backend"
+        DOCKER_TAG = "build-${env.BUILD_NUMBER}"
+        // Añade estas variables en la configuración de Jenkins
+        DROPLET_IP = credentials('DROPLET_SSH_IP')
+        SSH_CREDENTIALS = 'droplet-ssh-key'
     }
 
     stages {
@@ -13,23 +18,119 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Build and Push Docker image') {
+
+        stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
                     script {
-                        def image = "${DOCKERHUB_USER}/learning-agent-backend:${env.BUILD_NUMBER}"
                         dir('backend') {
-                            sh 'docker -v && docker info'
                             sh 'echo "Directorio actual:" && pwd'
                             sh 'echo "Contenido actual:" && ls -la'
-                            sh "docker build -t ${image} ."
+                            sh "docker build -t ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} ."
+                            sh "docker tag ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} ${env.DOCKER_IMAGE}:latest"
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    dir('backend') {
+                        // Ejecutar tests dentro del contenedor Docker
                         sh """
-                            echo \"$DOCKERHUB_PASS\" | docker login -u \"$DOCKERHUB_USER\" --password-stdin
-                            docker push ${image}
+                            docker run --rm \
+                                -e NODE_ENV=test \
+                                -e CI=true \
+                                ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} \
+                                npm test
                         """
                     }
                 }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'DOCKERHUB_CREDENTIALS', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    script {
+                        sh """
+                            echo \"$DOCKERHUB_PASS\" | docker login -u \"$DOCKERHUB_USER\" --password-stdin
+                            docker push ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+                            docker push ${env.DOCKER_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Droplet') {
+            steps {
+                script {
+                    sshagent([env.SSH_CREDENTIALS]) {
+                        sh """
+                            ssh -o StrictHostKeyChecking=no root@${env.DROPLET_IP} '
+                                # Pull the new image
+                                docker pull ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+                                
+                                # Stop and remove old container if exists
+                                docker stop learning-agent-backend || true
+                                docker rm learning-agent-backend || true
+                                
+                                # Run new container with environment variables
+                                docker run -d \\
+                                    --name learning-agent-backend \\
+                                    -p 3000:3000 \\
+                                    -e NODE_ENV=production \\
+                                    -e DATABASE_URL=\\\${DATABASE_URL} \\
+                                    -e JWT_SECRET=\\\${JWT_SECRET} \\
+                                    -e PORT=3000 \\
+                                    --restart unless-stopped \\
+                                    ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+                                
+                                # Clean up old images
+                                docker image prune -f
+                            '
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                script {
+                    sshagent([env.SSH_CREDENTIALS]) {
+                        sh """
+                            ssh -o StrictHostKeyChecking=no root@${env.DROPLET_IP} '
+                                # Wait for application to start
+                                sleep 10
+                                
+                                # Health check
+                                curl -f http://localhost:3000/api/health || exit 1
+                                echo "Deployment successful - Health check passed"
+                            '
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+            // Puedes agregar notificaciones aquí (Slack, Email, etc.)
+        }
+        failure {
+            echo 'Pipeline failed!'
+            // Notificaciones de error
+        }
+        always {
+            script {
+                // Cleanup Docker images locally
+                sh 'docker system prune -f || true'
             }
         }
     }
