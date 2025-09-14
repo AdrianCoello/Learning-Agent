@@ -6,7 +6,6 @@ pipeline {
         NODE_ENV = 'production'
         DOCKER_IMAGE = "adriancoello/learning-agent-backend"
         DOCKER_TAG = "build-${env.BUILD_NUMBER}"
-        DROPLET_IP = '104.248.216.179' 
     }
 
     stages {
@@ -36,30 +35,23 @@ pipeline {
             }
         }
 
-        stage('Deploy to Droplet') {
+        stage('Deploy Locally') {
             steps {
                 script {
-                    sshagent(['droplet-ssh-key']) {
-                        sh """
-                            ssh -o StrictHostKeyChecking=no root@${env.DROPLET_IP} '
-                                echo "Stopping existing container..."
-                                docker stop learning-agent-backend || true
-                                docker rm learning-agent-backend || true
-                                
-                                echo "Pulling Docker image..." 
-                                docker pull ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
+                    sh '''
+                        echo "Stopping existing container..."
+                        docker stop learning-agent-backend || true
+                        docker rm learning-agent-backend || true
 
-                                echo "Running new container..."
-                                docker run -d \\
-                                    --name learning-agent-backend \\
-                                    -p 3000:3000 \\
-                                    --restart unless-stopped \\
-                                    ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
-                                
-                                echo "Deployment completed!"
-                            '
-                        """
-                    }
+                        echo "Running new container..."
+                        docker run -d \
+                            --name learning-agent-backend \
+                            -p 3000:3000 \
+                            --restart unless-stopped \
+                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+
+                        echo "Deployment completed!"
+                    '''
                 }
             }
         }
