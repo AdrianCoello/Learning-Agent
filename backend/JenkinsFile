@@ -5,7 +5,7 @@ pipeline {
         CI = 'true'
         NODE_ENV = 'production'
         DOCKER_IMAGE = "adriancoello/learning-agent-backend"
-        DOCKER_TAG = "build-${env.BUILD_NUMBER}"
+        DOCKER_TAG = "build-${BUILD_NUMBER}"
     }
 
     stages {
@@ -20,7 +20,7 @@ pipeline {
                 script {
                     dir('backend') {
                         sh 'echo "Building Docker image..."'
-                        sh "docker build -t ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} ."
+                        sh "docker build -t $DOCKER_IMAGE:$DOCKER_TAG ."
                     }
                 }
             }
@@ -30,7 +30,7 @@ pipeline {
             steps {
                 script {
                     sh 'echo "Running tests inside Docker..."'
-                    sh "docker run --rm ${env.DOCKER_IMAGE}:${env.DOCKER_TAG} npm test || echo 'No tests found'"
+                    sh "docker run --rm $DOCKER_IMAGE:$DOCKER_TAG npm test || echo 'No tests found'"
                 }
             }
         }
@@ -46,9 +46,10 @@ pipeline {
                         echo "Running new container..."
                         docker run -d \
                             --name learning-agent-backend \
+                            --env-file backend/.env \
                             -p 3000:3000 \
                             --restart unless-stopped \
-                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                            $DOCKER_IMAGE:$DOCKER_TAG
 
                         echo "Deployment completed!"
                     '''
