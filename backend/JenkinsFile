@@ -101,10 +101,13 @@ pipeline {
                                     --restart unless-stopped \\
                                     ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
                                 
+                                echo "Waiting for backend to be ready..."
+                                sleep 30
+                                
                                 echo "Deployment completed!"
                                 
                                 echo "Running seed manually if needed..."
-                                docker exec learning-agent-backend npm run seed:prod || echo "Seed failed or already executed"
+                                docker exec learning-agent-backend node dist/prisma/seed.js || echo "Seed failed or already executed"
                             '
                         """
                     }
