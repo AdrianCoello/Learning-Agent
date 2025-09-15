@@ -60,6 +60,9 @@ pipeline {
 
                                 echo "Waiting for PostgreSQL to be ready..."
                                 sleep 15
+
+                                echo "Creating pgvector extension..."
+                                docker exec learning-agent-db psql -U postgres -d learning_agent -c "CREATE EXTENSION IF NOT EXISTS vector;"
         
                                 echo "Running backend container..."
                                 docker run -d \\
