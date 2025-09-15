@@ -96,6 +96,18 @@ pipeline {
                                     --name learning-agent-backend \\
                                     -p 3000:3000 \\
                                     -e DATABASE_URL="postgresql://postgres:password@learning-agent-db:5432/learning_agent" \\
+                                    -e JWT_ACCESS_SECRET="your_super_secret_jwt_access_key_change_in_production" \\
+                                    -e JWT_REFRESH_SECRET="your_super_secret_jwt_refresh_key_change_in_production" \\
+                                    -e JWT_ACCESS_TTL="15m" \\
+                                    -e JWT_REFRESH_TTL="7d" \\
+                                    -e LLM_PROVIDER="ollama" \\
+                                    -e OLLAMA_HOST="http://localhost:11434" \\
+                                    -e MINIO_ENDPOINT="http://localhost:9000" \\
+                                    -e MINIO_ACCESS_KEY="adminminio" \\
+                                    -e MINIO_SECRET_KEY="adminpassword" \\
+                                    -e MINIO_BUCKET_NAME="documents" \\
+                                    -e MINIO_REGION="us-east-1" \\
+                                    -e PORT="3000" \\
                                     --link learning-agent-db \\
                                     --restart unless-stopped \\
                                     ${env.DOCKER_IMAGE}:${env.DOCKER_TAG}
